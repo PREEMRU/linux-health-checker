@@ -1,5 +1,6 @@
 import time
 import shutil
+import subprocess
 
 def read_cpu_stats():
     with open('/proc/stat', 'r') as file:
@@ -46,7 +47,19 @@ def get_disk_usage():
     
     return round(100 * disk.used / disk.total, 2)
 
+def check_service(service_name: str):
+    result = subprocess.run(
+        ['systemctl', 'is-active', service_name],
+        capture_output=True,
+        text=True
+    )
+
+    return result.returncode == 0
+
+
 if __name__ == '__main__':
     print(f"CPU Usage: {get_cpu_usage()}%")
     print(f"RAM Usage: {get_memory_usage()}%")
     print(f"Disk Usage: {get_disk_usage()}%")
+    print(f"SSH: {check_service('ssh')}")
+    print(f"Nginx: {check_service('nginx')}")
