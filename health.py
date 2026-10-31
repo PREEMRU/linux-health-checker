@@ -1,4 +1,5 @@
 import time
+import shutil
 
 def read_cpu_stats():
     with open('/proc/stat', 'r') as file:
@@ -37,7 +38,15 @@ def get_memory_usage():
 
         return round(100 * (memtotal - memav) / memtotal, 2)
 
+def get_disk_usage():
+    disk = shutil.disk_usage('/')
+
+    if disk.total == 0:
+        return None
+    
+    return round(100 * disk.used / disk.total, 2)
 
 if __name__ == '__main__':
     print(f"CPU Usage: {get_cpu_usage()}%")
     print(f"RAM Usage: {get_memory_usage()}%")
+    print(f"Disk Usage: {get_disk_usage()}%")
