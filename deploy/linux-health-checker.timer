@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Linux Health Checker every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+Unit=linux-health-checker.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Linux Health Checker
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=health-checker
+WorkingDirectory=/opt/linux-health-checker
+ExecStart=/usr/bin/python3 /opt/linux-health-checker/health.py
+SuccessExitStatus=1 2 3
