@@ -18,16 +18,41 @@ jobs:
             - name: Install uv
               uses: astral-sh/setup-uv@v6
 
+            - name: Run tests with coverage
+              run: make coverage
+
             - name: Run lint
               if: success() || failure()
               run: make lint
+            
+            - name: Package application
+              run: |
+                mkdir -p dist/linux-health-checker
+                cp health.py Makefile dist/linux-health-checker/
+                cp -r deploy dist/linux-health-checker/
+                tar -czf dist/linux-health-checker.tar.gz -C dist linux-health-checker
 
-            - name: Run tests with coverage
-              run: make coverage
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: linux-health-checker
+                path: dist/linux-health-checker.tar.gz
+                if-no-files-found: error
+
     deploy:
       needs: test
       if: github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
+
       steps:
         - name: Simulate deployment
           run: echo "Deployment started"
+        
+        - name: Download artifact
+          uses: actions/download-artifact@v4
+          with:
+            name: linux-health-checker
+            path: dist
+
+        - name: Inspect artifact
+          run: tar -tzf dist/linux-health-checker.tar.gz
