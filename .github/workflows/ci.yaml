@@ -24,3 +24,6 @@ jobs:
             - name: Run lint
               if: success() || failure()
               run: make lint
+
+            - name: Run tests with coverage
+              run: make coverage
