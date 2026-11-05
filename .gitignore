@@ -1,2 +1,13 @@
+# Python
 __pycache__/
+*.py[cod]
+.venv/
+
+# Testing
 .coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+
+# Ruff
+.ruff_cache/
