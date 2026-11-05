@@ -18,12 +18,16 @@ jobs:
             - name: Install uv
               uses: astral-sh/setup-uv@v6
 
-            - name: Run tests
-              run: make test
-
             - name: Run lint
               if: success() || failure()
               run: make lint
 
             - name: Run tests with coverage
               run: make coverage
+    deploy:
+      needs: test
+      if: github.ref == 'refs/heads/main'
+      runs-on: ubuntu-latest
+      steps:
+        - name: Simulate deployment
+          run: echo "Deployment started"
