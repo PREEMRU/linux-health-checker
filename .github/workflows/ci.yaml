@@ -32,11 +32,18 @@ jobs:
                 cp -r deploy dist/linux-health-checker/
                 tar -czf dist/linux-health-checker.tar.gz -C dist linux-health-checker
 
+            - name: Generate checksum
+              run: |
+                cd dist
+                sha256sum linux-health-checker.tar.gz > SHA256SUMS
+
             - name: Upload artifact
               uses: actions/upload-artifact@v4
               with:
                 name: linux-health-checker
-                path: dist/linux-health-checker.tar.gz
+                path: |
+                  dist/linux-health-checker.tar.gz
+                  dist/SHA256SUMS
                 if-no-files-found: error
 
     deploy:
@@ -45,14 +52,19 @@ jobs:
       runs-on: ubuntu-latest
 
       steps:
-        - name: Simulate deployment
-          run: echo "Deployment started"
-        
         - name: Download artifact
           uses: actions/download-artifact@v4
           with:
             name: linux-health-checker
             path: dist
 
+        - name: Verify checksum
+          run: |
+            cd dist/
+            sha256sum -c SHA256SUMS
+
         - name: Inspect artifact
           run: tar -tzf dist/linux-health-checker.tar.gz
+
+        - name: Simulate deployment
+          run: echo "Deployment started"
