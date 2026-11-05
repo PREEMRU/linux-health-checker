@@ -1,0 +1,26 @@
+name: CI
+
+on:
+    push:
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Setup Python
+              uses: actions/setup-python@v6
+              with:
+                python-version: '3.14'
+            
+            - name: Install uv
+              uses: astral-sh/setup-uv@v6
+
+            - name: Run tests
+              run: make test
+
+            - name: Run lint
+              if: success() || failure()
+              run: make lint
