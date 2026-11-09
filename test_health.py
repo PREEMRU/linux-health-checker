@@ -153,3 +153,15 @@ def test_main(cpu, ram, disk, ssh, expected, capsys):
 
     ssh_status = "ACTIVE" if ssh else "INACTIVE"
     assert f"SSH:    {ssh_status}" in captured.out  
+    
+@pytest.mark.parametrize(
+    "usage, warning, critical, expected",
+    [
+        (65, 70, 85, "OK"),
+        (75, 70, 85, "WARNING"),
+        (90, 70, 85, "CRITICAL"),
+        (85, 80, 90, "WARNING")
+    ],
+)
+def test_custom_thresholds(usage, warning, critical, expected):
+    assert get_status(usage, warning, critical) == expected

@@ -1,4 +1,5 @@
 import shutil
+import argparse
 import subprocess
 import sys
 import time
@@ -57,13 +58,15 @@ def check_service(service_name: str) -> bool:
 
     return result.returncode == 0
 
-def get_status(usage: float | None) -> str:
+def get_status(usage: float | None,
+               warning: float=80,
+               critical: float=90) -> str:
     if usage is None:
         return "UNKNOWN"
 
-    if usage >= 90:
+    if usage >= critical:
         return "CRITICAL"
-    elif usage >= 80:
+    elif usage >= warning:
         return "WARNING"
     else:
         return "OK"
@@ -78,27 +81,60 @@ def get_exit_code(status: str) -> int:
 
     return stats[status]
 
-def main():
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Linux Server Health Checker"
+    )
+
+    parser.add_argument(
+        "--warning",
+        type=float,
+        default=80,
+        help="Warning threshold (default: 80)"
+    )
+
+    parser.add_argument(
+        "--critical",
+        type=float,
+        default=90,
+        help="Critical threshold (default: 90)"
+    )
+
+    args = parser.parse_args()
+
+    if not (0 <= args.warning < args.critical <= 100):
+        parser.error(
+            "Thresholds must satisfy: 0 <= warning < critical <= 100"
+        )
+
+    return args
+
+def main(warning=80, critical=90):
     cpu = get_cpu_usage()
     ram = get_memory_usage()
     disk = get_disk_usage()
     ssh = check_service('ssh')
 
-    cpu_code = get_exit_code(get_status(cpu))
-    ram_code = get_exit_code(get_status(ram))
-    disk_code = get_exit_code(get_status(disk))
+    cpu_status = get_status(cpu, warning, critical)
+    ram_status = get_status(ram, warning, critical)
+    disk_status = get_status(disk, warning, critical)
+
+    cpu_code = get_exit_code(cpu_status)
+    ram_code = get_exit_code(ram_status)
+    disk_code = get_exit_code(disk_status)
     ssh_code = 0 if ssh else 2
 
     overall_code = max(cpu_code, ram_code, disk_code, ssh_code)
 
     print(f'''=== SERVER HEALTH REPORT ===
-    CPU:    {cpu}% [{get_status(cpu)}]
-    RAM:    {ram}% [{get_status(ram)}]
-    Disk:   {disk}% [{get_status(disk)}]
+    CPU:    {cpu}% [{cpu_status}]
+    RAM:    {ram}% [{ram_status}]
+    Disk:   {disk}% [{disk_status}]
     SSH:    {"ACTIVE" if ssh else "INACTIVE"}''')
 
     sys.exit(overall_code)
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    main(args.warning, args.critical)
