@@ -11,6 +11,7 @@ from health import (
     get_memory_usage,
     get_status,
     main,
+    parse_args,
     read_cpu_stats,
 )
 
@@ -165,3 +166,27 @@ def test_main(cpu, ram, disk, ssh, expected, capsys):
 )
 def test_custom_thresholds(usage, warning, critical, expected):
     assert get_status(usage, warning, critical) == expected
+
+def test_parse_args_defaults():
+    with patch("sys.argv", ["health.py"]):
+        args = parse_args()
+
+    assert args.warning == 80
+    assert args.critical == 90
+
+def test_parse_args_custom():
+    with patch("sys.argv", ["health.py", "--warning", "60", "--critical", "80"]):
+        args = parse_args()
+
+    assert args.warning == 60
+    assert args.critical == 80
+
+def test_parse_args_invalid():
+    with patch("sys.argv", [
+        "health.py",
+        "--warning", "95",
+        "--critical", "30"
+    ]), pytest.raises(SystemExit) as exc:
+        parse_args()
+
+    assert exc.value.code == 2
