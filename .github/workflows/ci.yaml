@@ -72,7 +72,8 @@ jobs:
             authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
             ping: ${{ vars.DEPLOY_HOST }}
 
-        - name: Verify SSH access
+        - name: Upload and verify artifact on VM
+          shell: bash
           env:
             DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
             DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
@@ -82,9 +83,20 @@ jobs:
             umask 077
             printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
             printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-            ssh -i ~/.ssh/deploy_key \
-              -o IdentitiesOnly=yes \
-              -o BatchMode=yes \
-              -o StrictHostKeyChecking=yes \
-              -o ConnectTimeout=10 \
-              "deploy@$DEPLOY_HOST" 'hostname && whoami'
+            ssh_opts=(
+              -i "$HOME/.ssh/deploy_key"
+              -o IdentitiesOnly=yes
+              -o BatchMode=yes
+              -o StrictHostKeyChecking=yes
+              -o ConnectTimeout=10
+            )
+
+            target="deploy@$DEPLOY_HOST"
+            remote_dir=$(ssh "${ssh_opts[@]}" "$target" 'mktemp -d')
+
+            scp "${ssh_opts[@]}" \
+              dist/linux-health-checker.tar.gz dist/SHA256SUMS \
+              "$target:$remote_dir/"
+
+            ssh "${ssh_opts[@]}" "$target" \
+              "cd '$remote_dir' && sha256sum -c SHA256SUMS"
