@@ -52,7 +52,7 @@ def test_check_service(returncode, expected):
 
         mock_run.assert_called_once_with(
             ["systemctl", "is-active", "ssh"],
-            capture_output=True, text=True, check=False
+            capture_output=True, text=True, check=False, timeout=5
         )
 
         assert result is expected
