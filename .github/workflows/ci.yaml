@@ -72,7 +72,7 @@ jobs:
             authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
             ping: ${{ vars.DEPLOY_HOST }}
 
-        - name: Upload and verify artifact on VM
+        - name: Upload and install artifact on VM
           shell: bash
           env:
             DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
@@ -98,5 +98,17 @@ jobs:
               dist/linux-health-checker.tar.gz dist/SHA256SUMS \
               "$target:$remote_dir/"
 
-            ssh "${ssh_opts[@]}" "$target" \
-              "cd '$remote_dir' && sha256sum -c SHA256SUMS"
+            ssh "${ssh_opts[@]}" "$target" "bash -s -- '$remote_dir'" <<'REMOTE'
+            set -euo pipefail
+            cd "$1"
+            sha256sum -c SHA256SUMS
+            tar -xzf linux-health-checker.tar.gz
+
+            app_dir=/opt/linux-health-checker
+            new_file=$(mktemp "$app_dir/.health.py.XXXXXX")
+            trap 'rm -f -- "$new_file"' EXIT
+
+            install -m 644 linux-health-checker/health.py "$new_file"
+            mv -T -- "$new_file" "$app_dir/health.py"
+            sha256sum "$app_dir/health.py"
+            REMOTE
