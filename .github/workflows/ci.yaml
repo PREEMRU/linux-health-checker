@@ -71,3 +71,20 @@ jobs:
           with:
             authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
             ping: ${{ vars.DEPLOY_HOST }}
+
+        - name: Verify SSH access
+          env:
+            DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+            DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+            DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          run: |
+            install -d -m 700 ~/.ssh
+            umask 077
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+            ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=10 \
+              "deploy@$DEPLOY_HOST" 'hostname && whoami'
