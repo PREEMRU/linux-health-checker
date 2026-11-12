@@ -190,3 +190,60 @@ def test_parse_args_invalid():
         parse_args()
 
     assert exc.value.code == 2
+
+@pytest.mark.parametrize("error", [
+    OSError,
+    ValueError
+])
+def test_read_cpu_stats_errors(error):
+    with patch("builtins.open", side_effect=error):
+        result = read_cpu_stats()
+
+    assert result is None
+
+@pytest.mark.parametrize("first, second", [
+    (None, None),
+    ([100, 0, 0, 900, 0, 0, 0, 0], None)
+])
+def test_get_cpu_usage_errors(first, second):
+    with (
+        patch("health.read_cpu_stats", side_effect=[first, second]) as mock_read,
+        patch("health.time.sleep") as mock_sleep,
+        ):
+        result = get_cpu_usage()
+
+    assert result is None
+
+    if first is None:
+        mock_sleep.assert_not_called()
+        mock_read.assert_called_once()
+    else:
+        mock_sleep.assert_called_once()
+        assert mock_read.call_count == 2
+
+@pytest.mark.parametrize("error", [
+    OSError,
+    ValueError,
+    IndexError
+])
+def test_get_memory_usage_errors(error):
+    with patch("builtins.open", side_effect=error):
+        result = get_memory_usage()
+
+    assert result is None
+
+@pytest.mark.parametrize("content", [
+    "MemTotal: abc kB\nMemAvailable: 4000 kB\n",
+    "MemTotal:\nMemAvailable: 4000 kB\n"
+])
+def test_get_memory_usage_invalid_data(content):
+    with patch("builtins.open", mock_open(read_data=content)):
+        result = get_memory_usage()
+
+    assert result is None
+
+def test_get_disk_usage_oserror():
+    with patch("health.shutil.disk_usage", side_effect=OSError):
+        result = get_disk_usage()
+
+    assert result is None

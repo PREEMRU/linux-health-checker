@@ -6,16 +6,26 @@ import time
 
 
 def read_cpu_stats():
-    with open('/proc/stat', 'r') as file:
-        line = file.readline()
+    try:
+        with open('/proc/stat', 'r') as file:
+            line = file.readline()
 
-        values = [int(i) for i in line.split()[1:]]
-        return values
+            values = [int(i) for i in line.split()[1:]]
+            return values
+    except (ValueError, OSError):
+        return None
 
 def get_cpu_usage():
     first = read_cpu_stats()
+
+    if first is None: 
+        return None
+    
     time.sleep(1)
     second = read_cpu_stats()
+
+    if second is None:
+        return None
 
     total_delta = sum(second[:8]) - sum(first[:8])
     if total_delta == 0:
@@ -28,35 +38,45 @@ def get_cpu_usage():
 def get_memory_usage():
     memtotal = None
     memav = None
-    with open('/proc/meminfo', 'r') as file:
+    try:
+        with open('/proc/meminfo', 'r') as file:
 
-        for line in file:
-            if line.startswith('MemTotal'):
-                memtotal = int(line.split()[1])
+            for line in file:
+                if line.startswith('MemTotal'):
+                    memtotal = int(line.split()[1])
 
-            if line.startswith('MemAvailable'):
-                memav = int(line.split()[1])
+                if line.startswith('MemAvailable'):
+                    memav = int(line.split()[1])
 
         if memav is None or memtotal is None or memtotal == 0:
             return None
-
+        
         return round(100 * (memtotal - memav) / memtotal, 2)
+    
+    except (ValueError, IndexError, OSError):
+        return None
 
 def get_disk_usage():
-    disk = shutil.disk_usage('/')
+    try:
+        disk = shutil.disk_usage('/')
 
-    if disk.total == 0:
+        if disk.total == 0:
+            return None
+        
+        return round(100 * disk.used / disk.total, 2)
+    except OSError:
         return None
-    
-    return round(100 * disk.used / disk.total, 2)
 
-def check_service(service_name: str) -> bool:
-    result = subprocess.run(
-        ['systemctl', 'is-active', service_name],
-        capture_output=True, text=True, check=False
-    )
+def check_service(service_name: str) -> bool | None:
+    try:
+        result = subprocess.run(
+            ['systemctl', 'is-active', service_name],
+            capture_output=True, text=True, check=False, timeout=5
+        )
 
-    return result.returncode == 0
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return None
 
 def get_status(usage: float | None,
                warning: float=80,
@@ -122,15 +142,23 @@ def main(warning=80, critical=90):
     cpu_code = get_exit_code(cpu_status)
     ram_code = get_exit_code(ram_status)
     disk_code = get_exit_code(disk_status)
-    ssh_code = 0 if ssh else 2
 
+    if ssh is True:
+        ssh_code = 0
+    elif ssh is None:
+        ssh_code = 3
+    else:
+        ssh_code = 2
+
+    ssh_statuses = {0: "ACTIVE", 3: "ERROR", 2: "INACTIVE"}
+    
     overall_code = max(cpu_code, ram_code, disk_code, ssh_code)
 
     print(f'''=== SERVER HEALTH REPORT ===
     CPU:    {cpu}% [{cpu_status}]
     RAM:    {ram}% [{ram_status}]
     Disk:   {disk}% [{disk_status}]
-    SSH:    {"ACTIVE" if ssh else "INACTIVE"}''')
+    SSH:    {ssh_statuses[ssh_code]}''')
 
     sys.exit(overall_code)
 
