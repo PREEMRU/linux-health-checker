@@ -111,4 +111,24 @@ jobs:
             install -m 644 linux-health-checker/health.py "$new_file"
             mv -T -- "$new_file" "$app_dir/health.py"
             sha256sum "$app_dir/health.py"
+
+            before = read_runs(sys.argv[1])
+            after = read_runs(sys.argv[2])
+            new_ids = after.keys() - before.keys()
+
+            if len(new_ids) != 1:
+                sys.exit(f"Expected one new invocation, found {len(new_ids)}")
+
+            invocation_id = next(iter(new_ids))
+            messages = after[invocation_id]
+            print(f"InvocationID={invocation_id}")
+            print("\n".join(messages))
+
+            if "=== SERVER HEALTH REPORT ===" not in messages:
+                sys.exit("Missing report header")
+
+            for field in ("CPU:", "RAM:", "Disk:", "SSH:"):
+                if not any(line.lstrip().startswith(field) for line in messages):
+                    sys.exit(f"Missing report field: {field}")
+            PY
             REMOTE
