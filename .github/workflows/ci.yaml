@@ -112,6 +112,35 @@ jobs:
             mv -T -- "$new_file" "$app_dir/health.py"
             sha256sum "$app_dir/health.py"
 
+            sha256sum "$app_dir/health.py"
+
+            unit=linux-health-checker-smoke.service
+
+            read_journal() {
+              sudo -n /usr/bin/journalctl -u "$unit" -b -n 100 -o json --no-pager
+            }
+
+            read_journal > before.json
+            sudo -n /usr/bin/systemctl start "$unit"
+            read_journal > after.json
+
+            python3 - before.json after.json <<'PY'
+            import json
+            import sys
+
+
+            def read_runs(path):
+                runs = {}
+                with open(path) as journal:
+                    for line in journal:
+                        entry = json.loads(line)
+                        invocation_id = entry.get("_SYSTEMD_INVOCATION_ID")
+                        message = entry.get("MESSAGE")
+                        if invocation_id and isinstance(message, str):
+                            runs.setdefault(invocation_id, []).extend(message.splitlines())
+                return runs
+
+
             before = read_runs(sys.argv[1])
             after = read_runs(sys.argv[2])
             new_ids = after.keys() - before.keys()
