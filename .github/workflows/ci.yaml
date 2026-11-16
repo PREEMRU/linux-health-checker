@@ -72,17 +72,34 @@ jobs:
             authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
             ping: ${{ vars.DEPLOY_HOST }}
 
-        - name: Upload and install artifact on VM
+        - name: Prepare SSH
           shell: bash
           env:
             DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
             DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
             DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           run: |
-            install -d -m 700 ~/.ssh
+            install -m 700 -d ~/.ssh
             umask 077
+
+            test -n "$DEPLOY_KNOWN_HOSTS"
+            test -n "$DEPLOY_SSH_KEY"
+
             printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
             printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+            
+            test -s ~/.ssh/known_hosts
+            test -s ~/.ssh/deploy_key
+
+            stat -c '%a %n' ~/.ssh ~/.ssh/known_hosts ~/.ssh/deploy_key
+
+        - name: Upload artifact
+          id: upload
+          shell: bash
+          env: 
+            DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          run: |
+            target="deploy@$DEPLOY_HOST"
             ssh_opts=(
               -i "$HOME/.ssh/deploy_key"
               -o IdentitiesOnly=yes
@@ -90,74 +107,25 @@ jobs:
               -o StrictHostKeyChecking=yes
               -o ConnectTimeout=10
             )
-
-            target="deploy@$DEPLOY_HOST"
+            
             remote_dir=$(ssh "${ssh_opts[@]}" "$target" 'mktemp -d')
+            scp "${ssh_opts[@]}" dist/linux-health-checker.tar.gz dist/SHA256SUMS "$target:$remote_dir/"
+            printf 'remote_dir=%s\n' "$remote_dir" >> "$GITHUB_OUTPUT"
 
-            scp "${ssh_opts[@]}" \
-              dist/linux-health-checker.tar.gz dist/SHA256SUMS \
-              "$target:$remote_dir/"
+        - name: Install artifact
+          env: 
+            DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+            REMOTE_DIR: ${{ steps.upload.outputs.remote_dir }}
+          shell: bash
+          run: |
+            test -n "$REMOTE_DIR"
+            target="deploy@$DEPLOY_HOST"
 
-            ssh "${ssh_opts[@]}" "$target" "bash -s -- '$remote_dir'" <<'REMOTE'
-            set -euo pipefail
-            cd "$1"
-            sha256sum -c SHA256SUMS
-            tar -xzf linux-health-checker.tar.gz
-
-            app_dir=/opt/linux-health-checker
-            new_file=$(mktemp "$app_dir/.health.py.XXXXXX")
-            trap 'rm -f -- "$new_file"' EXIT
-
-            install -m 644 linux-health-checker/health.py "$new_file"
-            mv -T -- "$new_file" "$app_dir/health.py"
-            sha256sum "$app_dir/health.py"
-
-            sha256sum "$app_dir/health.py"
-
-            unit=linux-health-checker-smoke.service
-
-            read_journal() {
-              sudo -n /usr/bin/journalctl -u "$unit" -b -n 100 -o json --no-pager
-            }
-
-            read_journal > before.json
-            sudo -n /usr/bin/systemctl start "$unit"
-            read_journal > after.json
-
-            python3 - before.json after.json <<'PY'
-            import json
-            import sys
-
-
-            def read_runs(path):
-                runs = {}
-                with open(path) as journal:
-                    for line in journal:
-                        entry = json.loads(line)
-                        invocation_id = entry.get("_SYSTEMD_INVOCATION_ID")
-                        message = entry.get("MESSAGE")
-                        if invocation_id and isinstance(message, str):
-                            runs.setdefault(invocation_id, []).extend(message.splitlines())
-                return runs
-
-
-            before = read_runs(sys.argv[1])
-            after = read_runs(sys.argv[2])
-            new_ids = after.keys() - before.keys()
-
-            if len(new_ids) != 1:
-                sys.exit(f"Expected one new invocation, found {len(new_ids)}")
-
-            invocation_id = next(iter(new_ids))
-            messages = after[invocation_id]
-            print(f"InvocationID={invocation_id}")
-            print("\n".join(messages))
-
-            if "=== SERVER HEALTH REPORT ===" not in messages:
-                sys.exit("Missing report header")
-
-            for field in ("CPU:", "RAM:", "Disk:", "SSH:"):
-                if not any(line.lstrip().startswith(field) for line in messages):
-                    sys.exit(f"Missing report field: {field}")
-            PY
-            REMOTE
+            ssh_opts=(
+              -i "$HOME/.ssh/deploy_key"
+              -o IdentitiesOnly=yes
+              -o BatchMode=yes
+              -o StrictHostKeyChecking=yes
+              -o ConnectTimeout=10
+            )
+            ssh "${ssh_opts[@]}" "$target" "cd '$REMOTE_DIR' && sha256sum -c SHA256SUMS && tar -xzf linux-health-checker.tar.gz && python3 linux-health-checker/deploy/update.py linux-health-checker"
