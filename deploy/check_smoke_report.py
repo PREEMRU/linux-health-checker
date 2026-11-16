@@ -3,7 +3,7 @@ import sys
 
 
 def read_runs(path):
-    runs = dict()
+    runs = {}
 
     with open(path) as lines:
         for line in lines:
