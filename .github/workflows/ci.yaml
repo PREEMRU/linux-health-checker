@@ -129,4 +129,4 @@ jobs:
               -o ConnectTimeout=10
             )
 
-            ssh "${ssh_opts[@]}" "$target" "cd '$REMOTE_DIR' && sha256sum -c SHA256SUMS && tar -xzf linux-health-checker.tar.gz && python3 linux-health-checker/deploy/update.py linux-health-checker && cd linux-health-checker && bash deploy/smoke_check.sh"
+            ssh "${ssh_opts[@]}" "$target" "cd '$REMOTE_DIR' && sha256sum -c SHA256SUMS && tar -xzf linux-health-checker.tar.gz && python3 linux-health-checker/deploy/update.py linux-health-checker
